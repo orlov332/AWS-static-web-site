@@ -1,0 +1,472 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Mentoring Program Task #5'
+
+Parameters:
+  vpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Specify IP range for your VPC
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  azA:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: Specify first Availability Zone (A)
+  azB:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: Specify second Availability Zone (B)
+  publicACidr:
+    Type: String
+    Default: 10.0.11.0/24
+    Description: Specify IP range for your public subnet A
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  publicBCidr:
+    Type: String
+    Default: 10.0.21.0/24
+    Description: Specify IP range for your public subnet B
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  privateACidr:
+    Type: String
+    Default: 10.0.12.0/24
+    Description: Specify IP range for your private subnet A
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  privateBCidr:
+    Type: String
+    Default: 10.0.22.0/24
+    Description: Specify IP range for your private subnet B
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  databaseACidr:
+    Type: String
+    Default: 10.0.13.0/24
+    Description: Specify IP range for your Database subnet A
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  databaseBCidr:
+    Type: String
+    Default: 10.0.23.0/24
+    Description: Specify IP range for your Database subnet B
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+    ConstraintDescription: Please enter valid CIDR IP Range formatted value
+  bastionAMI:
+    Type: AWS::EC2::Image::Id
+    Default: ami-0cd855c8009cb26ef
+    Description: Specify Instance Image for Bastion Host
+  bastionInstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.nano
+    Description: Specify Instance Type for Bastion Host
+  bastionKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: aws-linux
+    Description: Specify security key for access to Bastion host
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Network locations
+        Parameters:
+          - azA
+          - azB
+      -
+        Label:
+          default: Bastion Hosts configuration
+        Parameters:
+          - bastionInstanceType
+          - bastionAMI
+          - bastionKey
+      -
+        Label:
+          default: Network Configuration
+        Parameters:
+          - vpcCidr
+          - publicACidr
+          - publicBCidr
+          - privateACidr
+          - privateBCidr
+          - databaseACidr
+          - databaseBCidr
+    ParameterLabels:
+      azA:
+        default: Availability Zone for subnet A
+      azB:
+        default: Availability Zone for subnet A
+      bastionInstanceType:
+        default: Bastion Hosts Instance Type
+      bastionAMI:
+        default: Bastion Hosts Image
+      bastionKey:
+        default: Bastion Hosts access key
+      vpcCidr:
+        default: VPC IP Range
+      publicACidr:
+        default: Public Subnet A IP Range
+      publicBCidr:
+        default: Public Subnet B IP Range
+      privateACidr:
+        default: Private Subnet A IP Range
+      privateBCidr:
+        default: Private Subnet B IP Range
+      databaseACidr:
+        default: Database Subnet A IP Range
+      databaseBCidr:
+        default: Database Subnet B IP Range
+
+Resources:
+
+  myVPC:
+    Type: AWS::EC2::VPC
+    Description: Create new VPC with CIDR block 10.0.0.0/16
+    Properties:
+      CidrBlock: !Ref vpcCidr
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} VPC
+
+  myIGW:
+    Type: AWS::EC2::InternetGateway
+    Description: Create Internet Gateway for the VPC
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} IGW
+
+  myVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Description: Attach Internet Gateway to the VPC
+    DependsOn: [myIGW, myVPC]
+    Properties:
+      InternetGatewayId: !Ref myIGW
+      VpcId: !Ref myVPC
+
+####################
+## Public Subnet ##
+####################
+
+  myPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Description: Public subnet in availability zone A
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref publicACidr
+      AvailabilityZone: !Ref azA
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Public Subnet A
+
+  myPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Description: Public subnet in availability zone B
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref publicBCidr
+      AvailabilityZone: !Ref azB
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Public Subnet B
+
+  myPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Description: Route table for public subnet
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Public Route Table
+  myPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myIGW
+  myPublicSubnetA2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnetA
+      RouteTableId: !Ref myPublicRouteTable
+  myPublicSubnetB2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnetB
+      RouteTableId: !Ref myPublicRouteTable
+
+  myElasticIpA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  myNATgatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - myElasticIpA
+          - AllocationId
+      SubnetId: !Ref myPublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} NatGateway A
+
+  myElasticIpB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  myNATgatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - myElasticIpB
+          - AllocationId
+      SubnetId: !Ref myPublicSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} NatGateway B
+
+####################
+## Private Subnet ##
+####################
+
+  myPrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Description: Private subnet in availability zone A
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref privateACidr
+      AvailabilityZone: !Ref azA
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Private Subnet A
+
+  myPrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Description: Private subnet in availability zone B
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref privateBCidr
+      AvailabilityZone: !Ref azB
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Private Subnet B
+
+  myPrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Description: Route table for Private subnet A
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Private A Route Table
+  myPrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPrivateRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATgatewayA
+  myPrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Description: Route table for Private subnet B
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Private B Route Table
+  myPrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPrivateRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATgatewayB
+  myPrivateSubnetA2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPrivateSubnetA
+      RouteTableId: !Ref myPrivateRouteTableA
+  myPrivateSubnetB2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPrivateSubnetB
+      RouteTableId: !Ref myPrivateRouteTableB
+
+#####################
+## Database Subnet ##
+#####################
+
+  myDatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Description: Database subnet in availability zone A
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref databaseACidr
+      AvailabilityZone: !Ref azA
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Database Subnet A
+
+  myDatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Description: Database subnet in availability zone B
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref databaseBCidr
+      AvailabilityZone: !Ref azB
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Database Subnet B
+
+  myDatabaseRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Description: Route table for Database subnet A
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Database A Route Table
+  myDatabaseRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myDatabaseRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATgatewayA
+  myDatabaseRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Description: Route table for Database subnet B
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Database B Route Table
+  myDatabaseRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myDatabaseRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATgatewayB
+  myDatabaseSubnetA2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myDatabaseSubnetA
+      RouteTableId: !Ref myDatabaseRouteTableA
+  myDatabaseSubnetB2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myDatabaseSubnetB
+      RouteTableId: !Ref myDatabaseRouteTableB
+
+  ###############
+  ## Bastion A ##
+  ###############
+
+  myBastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName} Security group for Bastion
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          IpProtocol: TCP
+          ToPort: 22
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} BastionSecurityGroup
+
+  myBastionHostA:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId: !Ref myPublicSubnetA
+      ImageId: !Ref bastionAMI
+      InstanceType: !Ref bastionInstanceType
+      KeyName: !Ref bastionKey
+      SecurityGroupIds:
+        - !Ref myBastionSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Bastion Host A
+
+  myBastionElasticIpA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  myBastionEIPAssociationA:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref myBastionElasticIpA
+      InstanceId: !Ref myBastionHostA
+
+  ###############
+  ## Bastion B ##
+  ###############
+
+  myBastionHostB:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId: !Ref myPublicSubnetB
+      ImageId: !Ref bastionAMI
+      InstanceType: !Ref bastionInstanceType
+      KeyName: !Ref bastionKey
+      SecurityGroupIds:
+        - !Ref myBastionSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Bastion Host B
+
+  myBastionElasticIpB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  myBastionEIPAssociationB:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref myBastionElasticIpB
+      InstanceId: !Ref myBastionHostB
+
+Outputs:
+  expSecurityGroup:
+    Description: Common SecurityGroup for new instances
+    Value: !Ref myBastionSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-CommonSecurityGroup
+  expPrivateSubnetA:
+    Description: Private Subnet A
+    Value: !Ref myPrivateSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetA
+  expPrivateSubnetB:
+    Description: Private Subnet B
+    Value: !Ref myPrivateSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetB
+  expPublicSubnetA:
+    Description: Public Subnet A
+    Value: !Ref myPublicSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnetA
+  expPublicSubnetB:
+    Description: Public Subnet B
+    Value: !Ref myPublicSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnetB
+  expDBSubnetA:
+    Description: DB Subnet A
+    Value: !Ref myDatabaseSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-DBSubnetA
+  expDBSubnetB:
+    Description: DB Subnet B
+    Value: !Ref myDatabaseSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-DBSubnetB

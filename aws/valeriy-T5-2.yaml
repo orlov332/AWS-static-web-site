@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'AWS Mentoring Program Task #5. Create EC2 instance in one of the selected subnet in your VPC'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Where need to create new instance?
+        Parameters:
+          - extStackName
+          - extSubnetName
+      -
+        Label:
+          default: Instance Configuration
+        Parameters:
+          - newInstanceType
+          - newInstanceAMI
+          - newInstanceKey
+    ParameterLabels:
+      extStackName:
+        default: Stack name which contains a destination subnet
+      extSubnetName:
+        default: Choose a subnet
+      newInstanceType:
+        default: Type of the new instance
+      newInstanceAMI:
+        default: AMI of the new instance
+      newInstanceKey:
+        default: Accsess key for the instance
+
+Parameters:
+
+  extStackName:
+    Type: String
+    Default: ValeriyT5
+    Description: Specify stack name where the instance will create into
+
+  extSubnetName:
+    Type: String
+    Default: PrivateSubnetA
+    AllowedValues:
+      - PrivateSubnetA
+      - PrivateSubnetB
+      - PublicSubnetA
+      - PublicSubnetB
+      - DBSubnetA
+      - DBSubnetB
+    Description: Specify subnet where the inctance will create into.
+
+  newInstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+    Description: Specify an Instance Type for new EC2 instance
+
+  newInstanceAMI:
+    Type: AWS::EC2::Image::Id
+    Default: ami-0cd855c8009cb26ef
+    Description: Specify Instance Image for new EC2 instance
+
+  newInstanceKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: aws-linux
+    Description: Specify security key for access to new EC2 instance
+
+Resources:
+
+  newEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref newInstanceAMI
+      InstanceType: !Ref newInstanceType
+      SubnetId:
+        Fn::ImportValue:
+          !Sub ${extStackName}-${extSubnetName}
+      KeyName: !Ref newInstanceKey
+      SecurityGroupIds:
+        - Fn::ImportValue:
+            !Sub ${extStackName}-CommonSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} Instance in ${extStackName} ${extSubnetName}
+
+
+
+
