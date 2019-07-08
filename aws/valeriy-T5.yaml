@@ -98,7 +98,7 @@ Metadata:
       azA:
         default: Availability Zone for subnet A
       azB:
-        default: Availability Zone for subnet A
+        default: Availability Zone for subnet B
       bastionInstanceType:
         default: Bastion Hosts Instance Type
       bastionAMI:
